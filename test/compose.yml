@@ -1,0 +1,10 @@
+services:
+  node:
+    image: "node:20-alpine"
+    deploy:
+      mode: replicated
+      replicas: 5
+    working_dir: /home/node/app
+    volumes:
+      - ../:/home/node/app
+    command: "npm run test"
