@@ -1,0 +1,7 @@
+node_modules/
+docs/
+dist/
+.vscode/
+.DS_Store
+src/
+test/
