@@ -1,6 +1,7 @@
 import Stst from './types'
 import { fork } from 'child_process'
 import { URL } from 'url'
+import path from 'path'
 import { generateReqId } from './common/utils'
 
 const DELETION_INTERVAL = 30000 // ms
@@ -24,9 +25,15 @@ interface Response {
   result: any
 }
 
-const childUrl = new URL(import.meta.resolve!('./strawberry'))
+let childPath: any
+if (typeof require !== 'undefined') { // cjs
+  childPath = path.join(__dirname, 'strawberry/index.cjs')
+} else { // es
+  childPath = new URL(import.meta.resolve('./strawberry'))
+}
+
 // NOTE: child_process.fork accepts string or URL, @types/node is incorrect
-const child = fork(childUrl as any, { serialization: 'advanced' }) // uses v8 serialisation
+const child = fork(childPath, { serialization: 'advanced' }) // uses v8 serialisation
 
 const currentRequests: Request[] = []
 
