@@ -1,3 +1,4 @@
+import Stst from '../types'
 import v8 from 'v8'
 
 // map key is store key, map value is a promise that gets resolved when the key is unlocked and the callback to resolve it

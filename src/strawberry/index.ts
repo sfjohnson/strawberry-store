@@ -1,3 +1,4 @@
+import Stst from '../types'
 import { ProtocolMessageType, TransactionOperationAction } from '../enums'
 import { reqResInit } from '../cream'
 import { lockKeys, unlockKeys, getKey, setKey, getAllKeysIterator } from '../bread'

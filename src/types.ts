@@ -1,5 +1,7 @@
 // NOTE: all numbers are 53 bit signed int
 
+import { ProtocolMessageType, TransactionOperationAction } from './enums'
+
 declare namespace Stst {
   interface ReadReqMessage {
     // Replay protection is given by reqId in cream layer
@@ -112,3 +114,5 @@ declare namespace Stst {
   //   objects: Map<string, StoreValueObjectContainer> // key is object key
   // }
 }
+
+export default Stst

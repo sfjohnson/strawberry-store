@@ -1,6 +1,6 @@
 {
   "name": "strawberry-store",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Fault tolerant distributed key-value store",
   "main": "dist/src/index.js",
   "type": "module",
@@ -9,6 +9,7 @@
     "npm": "^10.0.0"
   },
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "tsc",
     "test": "node --loader commonjs-extension-resolution-loader dist/test/test.js"
   },

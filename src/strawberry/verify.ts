@@ -1,3 +1,4 @@
+import Stst from '../types'
 import crypto from 'crypto'
 import * as ed from '@noble/ed25519'
 

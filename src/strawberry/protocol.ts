@@ -1,3 +1,4 @@
+import Stst from '../types'
 import v8 from 'v8'
 
 // Returns the parsed message or throws

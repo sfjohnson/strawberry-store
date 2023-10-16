@@ -1,3 +1,4 @@
+import Stst from '../types'
 import BetterSqlite3 from 'better-sqlite3'
 import v8 from 'v8'
 import os from 'os'

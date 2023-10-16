@@ -1,5 +1,6 @@
 // In a client-server model this would be the server
 
+import Stst from '../types'
 import { ProtocolMessageType, TransactionOperationAction } from '../enums'
 import { lockKeys, unlockKeys, getKey, setKey } from '../bread'
 import { serialiseMessage } from './protocol'
