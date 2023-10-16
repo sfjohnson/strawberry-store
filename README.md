@@ -38,6 +38,7 @@ storage engine (bread)
 - You will probably need to change the IP addresses in `PEERS` in `test.ts`
 
 ```
+npm run build
 cd test
 docker-compose up
 ```

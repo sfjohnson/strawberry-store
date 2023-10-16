@@ -1,7 +1,6 @@
 import Stst from './types'
 import { fork } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { URL } from 'url'
 import { generateReqId } from './common/utils'
 
 const DELETION_INTERVAL = 30000 // ms
@@ -25,8 +24,9 @@ interface Response {
   result: any
 }
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-const child = fork(path.join(dirname, 'strawberry'), { serialization: 'advanced' }) // uses v8 serialisation
+const childUrl = new URL(import.meta.resolve!('./strawberry'))
+// NOTE: child_process.fork accepts string or URL, @types/node is incorrect
+const child = fork(childUrl as any, { serialization: 'advanced' }) // uses v8 serialisation
 
 const currentRequests: Request[] = []
 

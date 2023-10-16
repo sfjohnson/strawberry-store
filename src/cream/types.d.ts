@@ -9,7 +9,7 @@ interface Transfer {
   reqId: number // uint32
   peerId: string // public key
   side: Side
-  resendInterval: NodeJS.Timer | null
+  resendInterval: NodeJS.Timeout | null
   reqData: Buffer | null
   resData: Buffer | null
   resDataPos: number // resDataPos < 0 means transfer is a responder
