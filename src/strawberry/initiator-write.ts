@@ -96,6 +96,7 @@ const sendWrite2ReqOnce = async (writeCertificate: Stst.WriteCertificate, transa
       try {
         const parsedRes = parseRes(resBuf)
         // Check if we received an erroneous Write1Res, or we received Write2RefusedRes
+        // TODO: Write2RefusedRes will contain an error message which we should not discard
         if (parsedRes.type !== ProtocolMessageType.WRITE_2_OK_RES) return false
         validResMessages.push(parsedRes.payload as Stst.Write2OkResMessage)
         return true

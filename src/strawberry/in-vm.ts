@@ -159,9 +159,15 @@ allowedPrototypes.set(
   ])
 )
 
-const sandbox = new Sandbox({
-  globals: allowedGlobals,
-  prototypeWhitelist: allowedPrototypes
-})
+try {
+  const sandbox = new Sandbox({
+    globals: allowedGlobals,
+    prototypeWhitelist: allowedPrototypes
+  })
 
-newValue = sandbox.compile(code)({ key, currentValue }).run()
+  newValue = sandbox.compile(code)({ key, currentValue }).run()
+} catch (err) {
+  // Ignore the error if this file has been loaded outside of the vm context
+  let outsideVM = err instanceof ReferenceError && err.message === 'Sandbox is not defined'
+  if (!outsideVM) throw err
+}

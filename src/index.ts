@@ -1,4 +1,5 @@
 import Stst from './types'
+import { TransactionOperationAction } from './enums'
 import { fork } from 'child_process'
 import { URL } from 'url'
 import path from 'path'
@@ -100,10 +101,16 @@ child.on('message', (msg) => {
   }
 })
 
-export const init = (config: Stst.PeerConfig): Promise<void> => {
+const init = (config: Stst.PeerConfig): Promise<void> => {
   return addReq('init', [config])
 }
 
-export const executeTransaction = (transaction: Stst.TransactionOperation[]): Promise<Stst.TransactionOperationResult[] | void> => {
+const executeTransaction = (transaction: Stst.TransactionOperation[]): Promise<Stst.TransactionOperationResult[] | void> => {
   return addReq('executeTransaction', [transaction])
+}
+
+export default {
+  init,
+  executeTransaction,
+  TransactionOperationAction // re-export enum so it can be used externally
 }

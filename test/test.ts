@@ -1,5 +1,5 @@
 import { networkInterfaces } from 'os'
-import { init } from '../src'
+import Stst from '../src'
 import { asyncDelay } from '../src/common/utils'
 import { initiatorEntrypoint } from './initiator'
 import { responderEntrypoint } from './responder'
@@ -67,7 +67,7 @@ const startPeer = async (myAddr: string) => {
     peerAddrs.push(`${myAddrOctets[0]}.${myAddrOctets[1]}.${myAddrOctets[2]}.${i + 2}`)
   }
 
-  await init({
+  await Stst.init({
     myPubKey: PEERS[myIndex].pubKey,
     myPrivKey: PEERS[myIndex].privKey,
     peerPubKeys,

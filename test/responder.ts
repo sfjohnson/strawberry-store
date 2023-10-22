@@ -1,20 +1,19 @@
 import { createHash } from 'crypto'
-import { TransactionOperationAction } from '../src/enums'
-import { executeTransaction } from '../src/'
+import Stst from '../src'
 import { asyncDelay } from '../src/common/utils'
 
 const transaction = [
   {
-    action: TransactionOperationAction.READ,
+    action: Stst.TransactionOperationAction.READ,
     key: '1234'
   }, {
-    action: TransactionOperationAction.READ,
+    action: Stst.TransactionOperationAction.READ,
     key: '1235'
   }, {
-    action: TransactionOperationAction.READ,
+    action: Stst.TransactionOperationAction.READ,
     key: 'hello'
   }, {
-    action: TransactionOperationAction.READ,
+    action: Stst.TransactionOperationAction.READ,
     key: '1236'
   }
 ]
@@ -22,7 +21,7 @@ const transaction = [
 export const responderEntrypoint = async (myId: string) => {
   await asyncDelay(7000)
 
-  const result = await executeTransaction(transaction)
+  const result = await Stst.executeTransaction(transaction)
   if (result) {
     for (const obj of result) {
       if (!Buffer.isBuffer(obj.value)) continue

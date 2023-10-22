@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'crypto'
-import { TransactionOperationAction } from '../src/enums'
-import { executeTransaction } from '../src/'
+import Stst from '../src'
 
 const generateRandomBuf = (length: number): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
@@ -17,48 +16,48 @@ const generateRandomBuf = (length: number): Promise<Buffer> => {
 const transactions = [
   [
     {
-      action: TransactionOperationAction.WRITE,
+      action:  Stst.TransactionOperationAction.WRITE,
       key: '1234',
       value: Buffer.from('hello1')
     }, {
-      action: TransactionOperationAction.WRITE,
+      action:  Stst.TransactionOperationAction.WRITE,
       key: '1235',
       value: Buffer.from([0x00, 0x01])
     }
   ], [
     {
-      action: TransactionOperationAction.WRITE,
+      action:  Stst.TransactionOperationAction.WRITE,
       key: '1234',
       value: Buffer.from('hello3')
     }, {
-      action: TransactionOperationAction.EXECUTE,
+      action: Stst.TransactionOperationAction.EXECUTE,
       key: '1235',
       value: Buffer.from('currentValue[0] += 1; return currentValue')
     }
   ], [
     {
-      action: TransactionOperationAction.WRITE,
+      action: Stst.TransactionOperationAction.WRITE,
       key: '1234',
       value: Buffer.from('hello5')
     }, {
-      action: TransactionOperationAction.WRITE,
+      action: Stst.TransactionOperationAction.WRITE,
       key: '1236',
       value: Buffer.from('hello6')
     }
   ], [
     {
-      action: TransactionOperationAction.DELETE,
+      action: Stst.TransactionOperationAction.DELETE,
       key: '1234'
     }
   ], [
     {
-      action: TransactionOperationAction.READ,
+      action: Stst.TransactionOperationAction.READ,
       key: '1234'
     }, {
-      action: TransactionOperationAction.READ,
+      action: Stst.TransactionOperationAction.READ,
       key: '1235'
     }, {
-      action: TransactionOperationAction.READ,
+      action: Stst.TransactionOperationAction.READ,
       key: '1236'
     }
   ]
@@ -73,7 +72,7 @@ export const initiatorEntrypoint = async (myId: string) => {
   console.log('bigRandomBuf hash:', hash1.digest().toString('base64'))
 
   for (let i = 0; i < transactions.length; i++) {
-    const result = await executeTransaction(transactions[i])
+    const result = await Stst.executeTransaction(transactions[i])
     if (result) {
       for (const obj of result) {
         if (!Buffer.isBuffer(obj.value)) continue
