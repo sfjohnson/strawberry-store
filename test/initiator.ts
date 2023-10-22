@@ -23,7 +23,7 @@ const transactions = [
     }, {
       action: TransactionOperationAction.WRITE,
       key: '1235',
-      value: Buffer.from('hello2')
+      value: Buffer.from([0x00, 0x01])
     }
   ], [
     {
@@ -31,9 +31,9 @@ const transactions = [
       key: '1234',
       value: Buffer.from('hello3')
     }, {
-      action: TransactionOperationAction.WRITE,
+      action: TransactionOperationAction.EXECUTE,
       key: '1235',
-      value: Buffer.from('hello4')
+      value: Buffer.from('currentValue[0] += 1; return currentValue')
     }
   ], [
     {
@@ -79,8 +79,10 @@ export const initiatorEntrypoint = async (myId: string) => {
         if (!Buffer.isBuffer(obj.value)) continue
         const hash2 = createHash('sha256')
         hash2.update(obj.value)
-        const objAny = obj as any
-        objAny.value = `len: ${obj.value.length}, hash: ${hash2.digest().toString('base64')}`
+        if (obj.value.length > 100) {
+          const objAny = obj as any
+          objAny.value = `len: ${obj.value.length}, hash: ${hash2.digest().toString('base64')}`
+        }
       }
     }
 

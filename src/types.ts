@@ -77,7 +77,7 @@ declare namespace Stst {
     myPubKey: string // ed25519 key as 32 byte base64 encoded string
     myPrivKey: string // ed25519 key as 32 byte base64 encoded string
     peerPubKeys: string[] // The length of this must be at least 3 * maxFaultyPeers
-    peerAddrs?: string[] // IP addresses or hostnames, can be undefined if network discovery is being used
+    peerAddrs?: string[] // IP addresses, can be undefined if network discovery is being used
     appDirName?: string // directory where database is stored in app data, only used for sqlite-store
     maxFaultyPeers: number
     readTimeout: number // in ms, this is both the maximum time to wait for a read response and also the amount of time to wait until retrying after non-matching responses
@@ -86,6 +86,7 @@ declare namespace Stst {
     write1RequestRetryCount: number
     write2Timeout: number // in ms, this timeout is in addition to the timeout in the cream layer
     write2RequestRetryCount: number
+    executeTimeout: number // in ms, the maximum amount of time an EXECUTE operation is allowed to run for
     gcInterval: number // how often garbage collection runs, in ms
   }
 

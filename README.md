@@ -25,13 +25,14 @@ storage engine (bread)
 ## To do list
 
 - [ ] Scrub (put a ceiling on the last read time for all stored keys, a read is performed when necessary)
-- [ ] Tagging transactions so that a database transaction can be used to trigger an action that may not be database related
+- [ ] Add signature to Write1ReqMessage to prevent writes from being spoofed
 - [ ] Notifying peers that are slow so they can catch up (resync)
 - [ ] Use an X.509 certificate for each peer signed by a certificate authority instead of using a whitelist of peer public keys
 - [ ] Log warnings/errors to a file
 - [ ] Tests! All the tests!
 - [ ] More efficiency over the network and in storage
 - [ ] Faster transactions
+- [ ] Length limits for keys and values
 
 ## Tests
 

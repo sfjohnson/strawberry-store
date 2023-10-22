@@ -12,6 +12,9 @@ const transaction = [
     key: '1235'
   }, {
     action: TransactionOperationAction.READ,
+    key: 'hello'
+  }, {
+    action: TransactionOperationAction.READ,
     key: '1236'
   }
 ]
@@ -23,11 +26,12 @@ export const responderEntrypoint = async (myId: string) => {
   if (result) {
     for (const obj of result) {
       if (!Buffer.isBuffer(obj.value)) continue
-      // if (obj.value) (obj as any).value = obj.value.toString()
       const hash1 = createHash('sha256')
       hash1.update(obj.value)
-      const objAny = obj as any
-      objAny.value = `len: ${obj.value.length}, hash: ${hash1.digest().toString('base64')}`
+      if (obj.value.length > 100) {
+        const objAny = obj as any
+        objAny.value = `len: ${obj.value.length}, hash: ${hash1.digest().toString('base64')}`
+      }
     }
   }
 

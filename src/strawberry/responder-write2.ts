@@ -6,6 +6,7 @@ import { lockKeys, unlockKeys, getKey, setKey } from '../bread'
 import { serialiseMessage } from './protocol'
 import { hashTransaction, verifyMultiGrant } from './verify'
 import { numberToTimestamp } from '../common/utils'
+import { executeOnKey } from './execute'
 
 let initDone = false
 let _myPubKey: string
@@ -116,8 +117,8 @@ const commitWriteTransaction = async (writeCertificate: Stst.WriteCertificate, t
     if (op.action === TransactionOperationAction.READ) {
       throw new Error('Read operation found in write transaction')
     }
-    if (op.action === TransactionOperationAction.WRITE && typeof op.value === 'undefined') {
-      throw new Error('write operation found without a value')
+    if (op.action === TransactionOperationAction.WRITE || op.action === TransactionOperationAction.EXECUTE) {
+      if (!Buffer.isBuffer(op.value)) throw new Error('write/execute operation found without a Buffer value')
     }
   }
 
@@ -134,8 +135,12 @@ const commitWriteTransaction = async (writeCertificate: Stst.WriteCertificate, t
 
     svoc.currentCertificate = writeCertificate
 
+    const opValue = op.value as Buffer // Already verified above
     if (op.action === TransactionOperationAction.WRITE) {
-      svoc.value = op.value as any // Already checked for undefined above
+      svoc.value = opValue
+      svoc.valueAvailable =  true
+    } else if (op.action === TransactionOperationAction.EXECUTE) {
+      svoc.value = executeOnKey(op.key, svoc.value, opValue.toString())
       svoc.valueAvailable =  true
     } else {
       // DELETE
@@ -176,6 +181,7 @@ export const onWrite2Req = async (payload: Stst.Write2ReqMessage): Promise<Buffe
     await verifyWriteCertificate(payload.writeCertificate, payload.transaction)
     await commitWriteTransaction(payload.writeCertificate, payload.transaction)
     // If we created a MultiGrant during write1 we can now safely delete it from grantHistory
+    // TODO: double check that deleteCompletedFromGrantHistory only accesses keys within transactionKeys, because otherwise the lock would be broken
     await deleteCompletedFromGrantHistory(payload.writeCertificate)
     unlockKeys(transactionKeys)
 

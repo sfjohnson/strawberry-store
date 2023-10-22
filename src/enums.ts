@@ -14,5 +14,6 @@ export enum ProtocolMessageType {
 export enum TransactionOperationAction {
   READ = 0,
   DELETE,
-  WRITE
+  WRITE,
+  EXECUTE
 }

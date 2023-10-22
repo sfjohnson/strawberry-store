@@ -10,6 +10,7 @@ import { onReadReq } from './responder-read'
 import { parseMessage } from './protocol'
 import { numberToTimestamp } from '../common/utils'
 import { initStore } from '../bread'
+import { initExecute } from './execute'
 
 const garbageCollector = async () => {
   for (const key of getAllKeysIterator()) {
@@ -44,14 +45,15 @@ const garbageCollector = async () => {
 
 const executeTransaction = async (transaction: Stst.TransactionOperation[]): Promise<Stst.TransactionOperationResult[] | void> => {
   // type is 'read' if it only contains read actions
-  // type is 'write' if it contains any mixture of write and delete actions but no read actions
+  // type is 'write' if it contains any mixture of write, execute and/or delete actions but no read actions
   let readOnly: boolean | null = null
 
   for (const op of transaction) {
     const isOpRead = op.action === TransactionOperationAction.READ
+    const isOpWriteExec = op.action === TransactionOperationAction.WRITE || op.action === TransactionOperationAction.EXECUTE
 
-    if (op.action === TransactionOperationAction.WRITE && typeof op.value === 'undefined') {
-      throw new Error('Write operations must have a value specified.')
+    if (isOpWriteExec && !Buffer.isBuffer(op.value)) {
+      throw new Error('Write/execute operations must have a Buffer value specified.')
     }
 
     if (readOnly === null) {
@@ -181,8 +183,9 @@ const onReq = async (fromPeerId: string, message: Buffer): Promise<Buffer> => {
       }
       if (!Array.isArray(payload.transaction)) throw new Error('Write2Req transaction must be an array')
       for (const op of payload.transaction) {
-        // DELETE should not have a value, WRITE should
-        validationMessage = validateTransactionOperation(op, op.action === TransactionOperationAction.WRITE)
+        // DELETE should not have a value, WRITE/EXECUTE should
+        const includesValue = op.action === TransactionOperationAction.WRITE || op.action === TransactionOperationAction.EXECUTE
+        validationMessage = validateTransactionOperation(op, includesValue)
         if (typeof validationMessage === 'string') throw new Error(`Write2Req transaction ${validationMessage}`)
       }
       response = await onWrite2Req(payload)
@@ -205,6 +208,7 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   if (!config.peerAddrs) throw new Error('peerAddrs required')
   if (!config.appDirName) throw new Error('appDirName required')
 
+  await initExecute(config.executeTimeout)
   await initStore(config.appDirName)
   await reqResInit(config.peerAddrs.map((addr, i) => { return { addr, id: config.peerPubKeys[i] } }), onReq)
   initInitiatorRead(config.maxFaultyPeers, config.readTimeout, config.readRequestRetryCount)
