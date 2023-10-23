@@ -87,9 +87,16 @@ export const setKey = (key: string, svoc: Stst.StoreValueObjectContainer): void 
   statement.run(key, v8.serialize(svoc))
 }
 
-export const getAllKeysIterator = (): IterableIterator<string> => {
+export const getAllKeysIterator = function* (): IterableIterator<string> {
   if (db === null) throw new Error('initStore not called')
 
-  const statement = db.prepare('SELECT key FROM store')
-  return statement.pluck().iterate() as IterableIterator<string>
+  let offset = 0
+  while (true) {
+    const statement = db.prepare('SELECT key FROM store LIMIT ?,100')
+    const keys = statement.pluck().all(offset) as string[]
+    if (keys.length === 0) return
+
+    for (const key of keys) yield key
+    offset += 100
+  }
 }

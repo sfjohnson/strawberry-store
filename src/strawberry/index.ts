@@ -18,6 +18,7 @@ const garbageCollector = async () => {
       await lockKeys([key])
       const svoc = getKey(key)
       if (!svoc || !svoc.currentCertificate || !svoc.grantHistory) {
+        // This is ok, it probably just means this key was deleted between getAllKeysIterator and getKey being called
         throw new Error(`GC: no valid svoc at ${key}`)
       }
 
