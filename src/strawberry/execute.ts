@@ -24,8 +24,8 @@ export const initExecute = async (executeTimeout: number) => {
 export const executeOnKey = (key: string, currentValue: Buffer | null, code: string): Buffer => {
   if (!initDone) throw new Error('Must call initExecute() first!')
 
-  // DEBUG: whyy (Sandbox as any).default ??
-  const context = { Buffer, Sandbox: (Sandbox as any).default, code, key, currentValue, newValue: null }
+  const sandboxDefaultExport = (Sandbox as any).default ? (Sandbox as any).default : Sandbox
+  const context = { Buffer, Sandbox: sandboxDefaultExport, code, key, currentValue, newValue: null }
 
   vm.runInNewContext(vmCode, context, {
     timeout: _executeTimeout,

@@ -1,5 +1,8 @@
 import Stst from '../types'
-import crypto from 'crypto'
+import { createHash, webcrypto } from 'crypto'
+
+// @ts-ignore
+if (!globalThis.crypto) globalThis.crypto = webcrypto // for Node <= v18
 import * as ed from '@noble/ed25519'
 
 // DEBUG: hashTransaction and signMultiGrant will be really slow for large values as they do lots of unnecessary string-based operations.
@@ -12,7 +15,7 @@ export const hashTransaction = (transaction: Stst.TransactionOperation[]): strin
     return [ op.action, op.key, value ]
   })
 
-  const hash = crypto.createHash('sha256')
+  const hash = createHash('sha256')
   hash.update(JSON.stringify(orderedTransaction))
   return hash.digest('base64')
 }
