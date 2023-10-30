@@ -20,7 +20,10 @@ export const initResponderWrite2 = (myPubKey: string, peerPubKeys: string[], max
   initDone = true
 }
 
-const verifyWriteCertificate = async (writeCertificate: Stst.WriteCertificate, transaction: Stst.TransactionOperation[]): Promise<void> => {
+// Returns true if write cert is consistent and we are ok to commit transaction
+// Returns false if write cert is consistent but we should not commit transaction because the store timestamp is ahead of write cert
+// Throws if write cert is inconsistent or our store is inconsistent
+const verifyWriteCertificate = (writeCertificate: Stst.WriteCertificate, transaction: Stst.TransactionOperation[]): boolean => {
   if (writeCertificate.length !== 2 * _maxFaultyPeers + 1) {
     throw new Error(`writeCertificate must contain exactly ${2 * _maxFaultyPeers + 1} MultiGrants`)
   }
@@ -35,7 +38,7 @@ const verifyWriteCertificate = async (writeCertificate: Stst.WriteCertificate, t
     if (typeof multiGrant.responderPubKey !== 'string') throw new Error('responderPubKey must be a string')
     if (typeof multiGrant.transactionHash !== 'string') throw new Error('transactionHash must be a string')
     // Test against myPubKey as well as peerPubKeys for when we receive back a multiGrant that we just signed during write1
-    if (!(await verifyMultiGrant(multiGrant, _peerPubKeys, _myPubKey))) throw new Error('multiGrant signature is invalid')
+    if (!(verifyMultiGrant(multiGrant, _peerPubKeys, _myPubKey))) throw new Error('multiGrant signature is invalid')
 
     initiatorPubKeys.add(multiGrant.initiatorPubKey)
     responderPubKeys.add(multiGrant.responderPubKey)
@@ -105,9 +108,12 @@ const verifyWriteCertificate = async (writeCertificate: Stst.WriteCertificate, t
     const { epoch: wcEpoch, subEpoch: wcSubEpoch } = numberToTimestamp(wcTimestamp)
     const { epoch: svocEpoch, subEpoch: svocSubEpoch } = numberToTimestamp(svocTimestamp)
     if (wcEpoch < svocEpoch || (wcEpoch === svocEpoch && wcSubEpoch <= svocSubEpoch)) {
-      throw new Error('Timestamp in writeCertificate is behind timestamp in currentCertificate in store')
+      // TODO: return most recent object value
+      return false
     }
   }
+
+  return true
 }
 
 const commitWriteTransaction = async (writeCertificate: Stst.WriteCertificate, transaction: Stst.TransactionOperation[]) => {
@@ -178,8 +184,8 @@ export const onWrite2Req = async (payload: Stst.Write2ReqMessage): Promise<Buffe
 
   try {
     await lockKeys(transactionKeys)
-    await verifyWriteCertificate(payload.writeCertificate, payload.transaction)
-    await commitWriteTransaction(payload.writeCertificate, payload.transaction)
+    const commit = verifyWriteCertificate(payload.writeCertificate, payload.transaction)
+    if (commit) await commitWriteTransaction(payload.writeCertificate, payload.transaction)
     // If we created a MultiGrant during write1 we can now safely delete it from grantHistory
     // TODO: double check that deleteCompletedFromGrantHistory only accesses keys within transactionKeys, because otherwise the lock would be broken
     await deleteCompletedFromGrantHistory(payload.writeCertificate)
@@ -204,7 +210,17 @@ export const onWrite2Req = async (payload: Stst.Write2ReqMessage): Promise<Buffe
 // This is called by initiator-write
 export const commitWriteTransactionLocal = async (writeCertificate: Stst.WriteCertificate, transaction: Stst.TransactionOperation[]): Promise<Stst.Write2OkResMessage> => {
   if (!initDone) throw new Error('Must call initResponderWrite1() first!')
-  await verifyWriteCertificate(writeCertificate, transaction)
-  await commitWriteTransaction(writeCertificate, transaction)
-  return { transactionHash: writeCertificate[0].transactionHash }
+  const transactionKeys = transaction.map(({ key }) => key)
+
+  try {
+    await lockKeys(transactionKeys)
+    const commit = verifyWriteCertificate(writeCertificate, transaction)
+    if (commit) await commitWriteTransaction(writeCertificate, transaction)
+    unlockKeys(transactionKeys)
+
+    return { transactionHash: writeCertificate[0].transactionHash }
+  } catch (err) {
+    unlockKeys(transactionKeys)
+    throw err
+  }
 }

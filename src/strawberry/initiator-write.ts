@@ -3,7 +3,7 @@
 import Stst from '../types'
 import { ProtocolMessageType } from '../enums'
 import { parseRes } from './index'
-import { initiateReqSome } from '../cream'
+import { ResCbStatus, initiateReqEach } from '../cream'
 import { generateSubEpoch, asyncDelay } from '../common/utils'
 import { hashTransaction, verifyMultiGrant } from './verify'
 import { serialiseMessage } from './protocol'
@@ -33,6 +33,17 @@ export const initInitiatorWrite = (
   initDone = true
 }
 
+const write1ResConsistent = (a: Stst.Write1OkResMessage, b: Stst.Write1OkResMessage): boolean => {
+  if (a.multiGrant.grants.size !== b.multiGrant.grants.size) return false // Write1 received grants are inconsistent
+
+  for (const [objectKey, timestamp] of a.multiGrant.grants.entries()) {
+    const timestampToCompare = b.multiGrant.grants.get(objectKey)
+    if (typeof timestampToCompare === 'undefined' || timestampToCompare !== timestamp) return false
+  }
+
+  return true
+}
+
 const sendWrite1ReqOnce = async (transaction: Stst.TransactionOperation[]): Promise<Stst.Write1OkResMessage[] | null> => {
   const write1ReqMessage: Stst.Write1ReqMessage = {
     // Write1Req transaction doesn't need values, only action and key
@@ -48,27 +59,52 @@ const sendWrite1ReqOnce = async (transaction: Stst.TransactionOperation[]): Prom
   // to our own store after verifying the other peer's MultiGrants, do we need to wait for 2*f + 1 or only 2*f peers?
   const requiredPeerCount = 2 * _maxFaultyPeers + 1
 
-  const validResMessages: Stst.Write1OkResMessage[] = []
+  // Try to match each received Write1OkResMessage; hopefully they all match with each other. If one doesn't match,
+  // add another segment to resMessageSegments and put it there. If any segment gets to requiredPeerCount messages,
+  // that segment wins and we can proceed. If we get to _peerPubKeys.length settled requests (responses or timeouts)
+  // and no segment contains requiredPeerCount messages, there is no quorum and the request has failed.
+  const resMessageSegments: Stst.Write1OkResMessage[][] = []
+  let validResMessages: Stst.Write1OkResMessage[] | null = null
+
   try {
-    await initiateReqSome(serialiseMessage({
+    await initiateReqEach(serialiseMessage({
       type: ProtocolMessageType.WRITE_1_REQ,
       payload: write1ReqMessage
-    }), requiredPeerCount, (resBuf) => {
+    }), (resBuf) => {
       try {
         const parsedRes = parseRes(resBuf)
         // Check if we received an erroneous Write2Res, or we received Write1RefusedRes
         // TODO: Write1RefusedRes will contain an error message which we should not discard
-        if (parsedRes.type !== ProtocolMessageType.WRITE_1_OK_RES) return false
-        validResMessages.push(parsedRes.payload as Stst.Write1OkResMessage)
-        return true
+        if (parsedRes.type !== ProtocolMessageType.WRITE_1_OK_RES) return ResCbStatus.CONTINUE
+
+        const message = parsedRes.payload as Stst.Write1OkResMessage
+        // No need to test against myPubKey
+        if (!verifyMultiGrant(message.multiGrant, _peerPubKeys)) return ResCbStatus.CONTINUE
+
+        let match = false
+        for (const segment of resMessageSegments) {
+          if (write1ResConsistent(segment[segment.length-1], message)) {
+            segment.push(message)
+            if (segment.length === requiredPeerCount) {
+              validResMessages = segment
+              return ResCbStatus.RESOLVE
+            }
+            match = true
+          }
+        }
+
+        if (!match) resMessageSegments.push([message])
+        return ResCbStatus.CONTINUE 
       } catch {
-        return false
+        return ResCbStatus.CONTINUE 
       }
     })
-  } catch {
+  } catch (err) {
+    // DEBUG: log
+    console.error('write1', err)
   }
 
-  if (validResMessages.length !== requiredPeerCount) {
+  if (validResMessages === null) {
     // delay before retrying request
     await asyncDelay(_write1Timeout)
     return null
@@ -86,25 +122,28 @@ const sendWrite2ReqOnce = async (writeCertificate: Stst.WriteCertificate, transa
   }
 
   const requiredPeerCount = 2 * _maxFaultyPeers + 1
-
   const validResMessages: Stst.Write2OkResMessage[] = []
+
   try {
-    await initiateReqSome(serialiseMessage({
+    await initiateReqEach(serialiseMessage({
       type: ProtocolMessageType.WRITE_2_REQ,
       payload: write2ReqMessage
-    }), requiredPeerCount, (resBuf) => {
+    }), (resBuf) => {
       try {
         const parsedRes = parseRes(resBuf)
         // Check if we received an erroneous Write1Res, or we received Write2RefusedRes
         // TODO: Write2RefusedRes will contain an error message which we should not discard
-        if (parsedRes.type !== ProtocolMessageType.WRITE_2_OK_RES) return false
+        if (parsedRes.type !== ProtocolMessageType.WRITE_2_OK_RES) return ResCbStatus.CONTINUE
         validResMessages.push(parsedRes.payload as Stst.Write2OkResMessage)
-        return true
+        if (validResMessages.length === requiredPeerCount) return ResCbStatus.RESOLVE
+        return ResCbStatus.CONTINUE
       } catch {
-        return false
+        return ResCbStatus.CONTINUE
       }
     })
-  } catch {
+  } catch (err) {
+    // DEBUG: log
+    console.error('write2', err)
   }
 
   if (validResMessages.length !== requiredPeerCount) {
@@ -130,36 +169,7 @@ export const executeWriteOrDeleteTransaction = async (transaction: Stst.Transact
 
   if (write1OkResMessages === null) throw new Error(`Write1 request${_write1ReqRetryCount > 0 ? 's' : ''} timed out or failed`)
 
-  const writeCertificate: Stst.WriteCertificate = []
-
-  // Validate Write1 responses using the multiGrant signatures
-  let grantsToCompare: Map<string, number>
-  for (let i = 0; i < write1OkResMessages.length; i++) {
-    const res = write1OkResMessages[i]
-    // No need to test against myPubKey
-    if (!(await verifyMultiGrant(res.multiGrant, _peerPubKeys))) {
-      throw new Error('Write1 received MultiGrant has invalid signature')
-    }
-
-    const grants = res.multiGrant.grants
-    writeCertificate.push(res.multiGrant)
-
-    if (i === 0) {
-      grantsToCompare = grants
-      continue
-    }
-
-    if (grantsToCompare!.size !== grants.size) {
-      throw new Error('Write1 received grants are inconsistent')
-    }
-
-    for (const [objectKey, timestamp] of grants.entries()) {
-      const timestampToCompare = grantsToCompare!.get(objectKey)
-      if (typeof timestampToCompare === 'undefined' || timestampToCompare !== timestamp) {
-        throw new Error('Write1 received grants are inconsistent')
-      }
-    }
-  }
+  const writeCertificate: Stst.WriteCertificate = write1OkResMessages.map(({ multiGrant }) => multiGrant)
 
   // Write2
 

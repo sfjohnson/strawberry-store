@@ -1,6 +1,6 @@
 import { generateReqId } from '../common/utils'
 import { udpInit } from './udp'
-import { StateChangeEnum, Side } from './enums'
+import { StateChangeEnum, Side, ResCbStatus } from './enums'
 import { readPacketAndUpdateState, validateChunkDataIR0 } from './read'
 import { sendChunkDataIR, sendChunkDataRI, sendGetChunkIR, sendGetChunkRI, sendCompletionAckIR } from './send'
 import { TRANSFER_TIMEOUT, CLEANUP_INTERVAL, RESEND_INTERVAL, MAX_CHUNK_LENGTH, ONREQ_ASYNC_TIMEOUT } from './constants'
@@ -223,45 +223,49 @@ export const initiateReqAll = async (reqData: Buffer): Promise<(Buffer | null)[]
 // this is for the initiator side
 // this function:
 // 1. initiates a request with each of the other peer IDs
-// 2. waits for the first requiredResCount valid responses
-// 3. resolves without waiting for the rest of the responses
-// 4. rejects if enough responses are invalid or have timed out
-export const initiateReqSome = async (reqData: Buffer, requiredResCount: number, resValidCb: (res: Buffer) => boolean): Promise<Buffer[]> => {
+// 2. calls onResCb for each response
+// 3. rejects, resolves or continues based on what onResCb returns
+// 4. rejects if all reqs have settled but onResCb has only returned ResCbStatus.CONTINUE
+// 5. if onResCb returns ResCbStatus.RESOLVE, resolves with an array of responses
+export const initiateReqEach = async (reqData: Buffer, onResCb: (res: Buffer) => ResCbStatus): Promise<Buffer[]> => {
   return new Promise ((resolve, reject) => {
     if (_otherPeerIds === null) {
       reject(new Error('reqResInit not called'))
       return
     }
 
-    let invalidResCount = 0
-    let settled = false
+    const settledCountTarget = _otherPeerIds!.length
+    let settledCount = 0
     let responses: Buffer[] = []
-
-    const rejectIfEnoughInvalid = () => {
-      if (requiredResCount + invalidResCount > _otherPeerIds!.length) {
-        settled = true
-        reject(new Error('not enough valid responses received'))
-      }
-    }
 
     for (const peerId of _otherPeerIds) {
       initiateReq(peerId, reqData).then((res) => {
-        if (settled) return
-        if (resValidCb(res)) {
-          responses.push(res)
-        } else {
-          invalidResCount++
-        }
-        if (responses.length === requiredResCount) {
-          settled = true
-          resolve(responses)
-        } else {
-          rejectIfEnoughInvalid()
+        if (settledCount === settledCountTarget) return
+
+        switch(onResCb(res)) {
+          case ResCbStatus.CONTINUE:
+            if (++settledCount === settledCountTarget) {
+              reject(new Error('cannot continue, all requests settled'))
+              break
+            }
+            responses.push(res)
+            break
+          case ResCbStatus.RESOLVE:
+            responses.push(res)
+            settledCount = settledCountTarget
+            resolve(responses)
+            break
+          case ResCbStatus.REJECT:
+            settledCount = settledCountTarget
+            reject(new Error('resCb rejected'))
+            break
         }
       }).catch(() => {
-        if (settled) return
-        invalidResCount++
-        rejectIfEnoughInvalid()
+        if (settledCount === settledCountTarget) return
+
+        if (++settledCount === settledCountTarget) {
+          reject(new Error('not enough responses received'))
+        }
       })
     }
   })

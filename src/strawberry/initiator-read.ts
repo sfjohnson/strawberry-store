@@ -4,10 +4,10 @@ import Stst from '../types'
 import { ProtocolMessageType } from '../enums'
 import { parseRes } from './index'
 import { lockKeys, unlockKeys, getKey } from '../bread'
-import { initiateReqSome } from '../cream'
+import { ResCbStatus, initiateReqEach } from '../cream'
 import { serialiseMessage } from './protocol'
 import { asyncDelay } from '../common/utils'
-import { onScrubError } from './scrub'
+import { onScrubFault, initScrub } from './scrub'
 
 let initDone = false
 // config
@@ -19,12 +19,14 @@ const writeCertificatesMatch = (a: Stst.WriteCertificate, b: Stst.WriteCertifica
   // This peer has done verifyWriteCertificate() during Write 2 before storing the certificate.
   // If all the other peers match this peer's stored write certificate, then they are all verified without
   // re-validating signatures etc.
-  if (a.length !== b.length) return false
+  // If this peer's stored write certificate does not match, this trust chain is broken and we must
+  // re-verify all write certificates as part of the scrub process.
+  if (a.length !== 2 * _maxFaultyPeers + 1 || b.length !== 2 * _maxFaultyPeers + 1) return false
 
   for (let i = 0; i < a.length; i++) {
     if (a[i].responderPubKey !== b[i].responderPubKey) return false
     if (a[i].signature !== b[i].signature) return false
-    // If the signatures match and are valid (see above) then the grants must match
+    // If the signatures match and are valid (see above) then the grants and transaction hashes also match
   }
 
   return true
@@ -60,10 +62,11 @@ const resultsMatch = (a: Stst.ReadOperationResult[], b: Stst.ReadOperationResult
   return true
 }
 
-export const initInitiatorRead = (maxFaultyPeers: number, timeout: number, reqRetryCount: number) => {
+export const initInitiatorRead = (maxFaultyPeers: number, timeout: number, reqRetryCount: number, myPubKey: string, peerPubKeys: string[]) => {
   _maxFaultyPeers = maxFaultyPeers
   _timeout = timeout
   _reqRetryCount = reqRetryCount
+  initScrub(myPubKey, peerPubKeys)
   initDone = true
 }
 
@@ -72,43 +75,63 @@ const sendReadReqOnce = async (transaction: Stst.TransactionOperation[]): Promis
     transaction
   }
 
-  // DEBUG: do we need to wait for f + 1 or only f peers?
+  // If we get _maxFaultyPeers peers that match this peer's stored write certificate, that is sufficient for a read as it
+  // meets the f + 1 requirement, but if this peer's stored write certificate does not match we will not be able to do
+  // the scrub process as we now have only f not f + 1. Therefore we always require _maxFaultyPeers + 1 remote peers so
+  // we can scrub if necessary.
   const requiredPeerCount = _maxFaultyPeers + 1
 
-  let validResultsCount = 0
-  let matchingResults: Stst.ReadOperationResult[] | null = null
+  // For each received list of read operation results, check if it matches the others. If it doesn't match, add it to a new
+  // segment. If it matches an existing segment, add it there. If any segment reaches requiredPeerCount that segment has a
+  // quorum and we return those results and discard the other results.
+  const resultsSegments = new Map<Stst.ReadOperationResult[], number>()
+  let resultsQuorum: Stst.ReadOperationResult[] | null = null
+
   try {
-    await initiateReqSome(serialiseMessage({
+    await initiateReqEach(serialiseMessage({
       type: ProtocolMessageType.READ_REQ,
       payload: readReqMessage,
-    }), requiredPeerCount, (resBuf) => {
+    }), (resBuf) => {
       try {
         const parsedRes = parseRes(resBuf)
-        if (parsedRes.type !== ProtocolMessageType.READ_RES) return false
+        if (parsedRes.type !== ProtocolMessageType.READ_RES) return ResCbStatus.CONTINUE 
         const resMessage = parsedRes.payload as Stst.ReadResMessage
 
-        if (matchingResults === null || resultsMatch(matchingResults, resMessage.results)) {
-          matchingResults = resMessage.results
-          validResultsCount++
-          return true
+        let match = false
+        for (const [results, count] of resultsSegments.entries()) {
+          if (resultsMatch(results, resMessage.results)) {
+            resultsSegments.set(results, count + 1)
+            if (count + 1 === requiredPeerCount) {
+              resultsQuorum = results
+            } else {
+              match = true
+            }
+            break
+          }
         }
-        return false
+
+        if (resultsQuorum !== null) return ResCbStatus.RESOLVE
+        if (!match) resultsSegments.set(resMessage.results, 1)
+        return ResCbStatus.CONTINUE 
       } catch {
-        return false
+        return ResCbStatus.CONTINUE 
       }
     })
-  } catch {
+  } catch (err) {
+    // DEBUG: log
+    console.error('read', err)
   }
 
-  if (validResultsCount !== requiredPeerCount) {
+  if (resultsQuorum === null) {
     // delay before retrying request
     await asyncDelay(_timeout)
     return null
   }
 
-  return matchingResults
+  return resultsQuorum
 }
 
+// NOTE: reading objects that have not been written to before (null currentCertificate) is not permitted
 export const executeReadTransaction = async (transaction: Stst.TransactionOperation[]): Promise<Stst.TransactionOperationResult[]> => {
   if (!initDone) throw new Error('Must call initInitiatorRead() first!')
   
@@ -119,6 +142,12 @@ export const executeReadTransaction = async (transaction: Stst.TransactionOperat
   }
 
   if (results === null) throw new Error(`Read request${_reqRetryCount > 0 ? 's' : ''} failed`)
+
+  for (const result of results) {
+    if (result.currentCertificate === null) {
+      throw new Error('Read transaction contains object(s) that have not yet been written')
+    }
+  }
 
   // The peers match, now read from my own store and compare to peers
   const transactionKeys = transaction.map(({ key }) => key)
@@ -144,7 +173,7 @@ export const executeReadTransaction = async (transaction: Stst.TransactionOperat
 
   unlockKeys(transactionKeys)
 
-  if (!resultsMatch(results, myResults)) return onScrubError(results)
+  if (!resultsMatch(results, myResults)) onScrubFault(results)
 
   return results.map(({ key, valueAvailable, value }) => {
     return {

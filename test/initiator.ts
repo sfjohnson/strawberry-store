@@ -1,5 +1,6 @@
-import { createHash, randomBytes } from 'crypto'
 import Stst from '../src'
+import { createHash, randomBytes } from 'crypto'
+// import { reqResInit, initiateReqEach, ResCbStatus } from '../src/cream'
 
 const generateRandomBuf = (length: number): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
@@ -64,12 +65,23 @@ const transactions = [
 ]
 
 export const initiatorEntrypoint = async (myId: string) => {
+  // await reqResInit(peers, null)
+
   const bigRandomBuf = await generateRandomBuf(2000);
   (transactions[2][1] as any).value = bigRandomBuf
 
   const hash1 = createHash('sha256')
   hash1.update(bigRandomBuf)
   console.log('bigRandomBuf hash:', hash1.digest().toString('base64'))
+
+  // let resCount = 0
+  // console.log('result', await initiateReqEach(bigRandomBuf, (res) => {
+  //   console.log('received', res[0], res.subarray(1).toString('base64'))
+  //   if (++resCount === 3) {
+  //     return ResCbStatus.RESOLVE
+  //   }
+  //   return ResCbStatus.CONTINUE
+  // }))
 
   for (let i = 0; i < transactions.length; i++) {
     const result = await Stst.executeTransaction(transactions[i])

@@ -55,7 +55,6 @@ const allowedGlobals = {
 
 const protos = [
   Boolean,
-  Number,
   BigInt,
   String,
   Error,
@@ -88,6 +87,16 @@ allowedPrototypes.set(
     'toString',
     'valueOf',
     'values',
+  ])
+)
+
+allowedPrototypes.set(
+  Number,
+  new Set([
+    'toExponential',
+    'toFixed',
+    'toPrecision',
+    'toString'
   ])
 )
 

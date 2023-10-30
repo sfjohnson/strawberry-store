@@ -202,17 +202,17 @@ const onReq = async (fromPeerId: string, message: Buffer): Promise<Buffer> => {
 }
 
 const init = async (config: Stst.PeerConfig): Promise<void> => {
+  if (config.maxFaultyPeers <= 0) throw new Error('maxFaultyPeers must be at least 1')
   if (config.peerPubKeys.length < 3 * config.maxFaultyPeers) {
     throw new Error('The total number of peers must be at least 3 * maxFaultyPeers + 1')
   }
-
   if (!config.peerAddrs) throw new Error('peerAddrs required')
   if (!config.appDirName) throw new Error('appDirName required')
 
   await initExecute(config.executeTimeout)
   await initStore(config.appDirName)
   await reqResInit(config.peerAddrs.map((addr, i) => { return { addr, id: config.peerPubKeys[i] } }), onReq)
-  initInitiatorRead(config.maxFaultyPeers, config.readTimeout, config.readRequestRetryCount)
+  initInitiatorRead(config.maxFaultyPeers, config.readTimeout, config.readRequestRetryCount, config.myPubKey, config.peerPubKeys)
   initInitiatorWrite(config.peerPubKeys, config.maxFaultyPeers, config.write1Timeout, config.write1RequestRetryCount, config.write2Timeout, config.write2RequestRetryCount)
   initResponderWrite1(config.myPubKey, config.myPrivKey)
   initResponderWrite2(config.myPubKey, config.peerPubKeys, config.maxFaultyPeers)

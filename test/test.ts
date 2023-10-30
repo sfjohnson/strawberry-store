@@ -39,6 +39,162 @@ const PEERS = [
   }
 ]
 
+const WRITE_OPS = [
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'one4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'two4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'three4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'four4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'five4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'six4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'seven4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.WRITE,
+    key: 'eight4',
+    value: Buffer.from('0')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'one4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'two4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'three4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'four4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'five4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'six4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'seven4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  },
+  {
+    action: Stst.TransactionOperationAction.EXECUTE,
+    key: 'eight4',
+    value: Buffer.from('return Buffer.from((currentValue || Buffer.from([])).toString() + \'1\')')
+  }
+]
+
+const READ_OPS = [
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'one4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'two4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'three4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'four4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'five4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'six4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'seven4'
+  },
+  {
+    action: Stst.TransactionOperationAction.READ,
+    key: 'eight4'
+  }
+]
+
+const randomInteger = (lowInclusive: number, highNotInclusive: number) => {
+  return lowInclusive + Math.floor((highNotInclusive - lowInclusive) * Math.random())
+}
+
+const doTransaction = async () => {
+  const transaction = []
+
+  if (Math.random() > 0.9) {
+    // read
+    const opCount = randomInteger(1, 6)
+    const readOpIndexes = new Array(opCount)
+    do {
+      for (let i = 0; i < opCount; i++) {
+        readOpIndexes[i] = randomInteger(0, READ_OPS.length)
+      }
+    } while (new Set(readOpIndexes).size !== readOpIndexes.length)
+
+    for (let i = 0; i < opCount; i++) {
+      transaction.push(READ_OPS[readOpIndexes[i]])
+    }
+  } else {
+    // write
+    const opCount = randomInteger(1, 4)
+    const writeOpIndexes = new Array(opCount)
+    do {
+      for (let i = 0; i < opCount; i++) {
+        writeOpIndexes[i] = randomInteger(0, WRITE_OPS.length)
+      }
+    } while (new Set(writeOpIndexes).size !== writeOpIndexes.length)
+
+    for (let i = 0; i < opCount; i++) {
+      transaction.push(WRITE_OPS[writeOpIndexes[i]])
+    }
+  }
+
+  console.log(await Stst.executeTransaction(transaction))
+}
+
 const getMyAddr = () => {
   const ifaces = networkInterfaces()
   for (const iface of Object.keys(ifaces)) {
@@ -87,15 +243,34 @@ const startPeer = async (myAddr: string) => {
   // wait for all hosts to init
   await asyncDelay(2000)
 
-  try {
-    if (myIndex === 0) {
-      await initiatorEntrypoint(PEERS[myIndex].pubKey)
-    } else {
-      await responderEntrypoint(PEERS[myIndex].pubKey)
+  while (true) {
+    try {
+      await doTransaction()
+    } catch (err: unknown) {
+      console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
     }
-  } catch (err: unknown) {
-    console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
+
+    await asyncDelay(1000)
   }
+
+  // const creamPeers: any[] = []
+  // for (let i = 0; i < PEERS.length; i++) {
+  //   if (i === myIndex) continue
+  //   creamPeers.push({
+  //     addr: `${myAddrOctets[0]}.${myAddrOctets[1]}.${myAddrOctets[2]}.${i + 2}`,
+  //     id: PEERS[i].pubKey
+  //   })
+  // }
+
+  // try {
+  //   if (myIndex === 0) {
+  //     await initiatorEntrypoint(PEERS[myIndex].pubKey)
+  //   } else {
+  //     await responderEntrypoint(PEERS[myIndex].pubKey)
+  //   }
+  // } catch (err: unknown) {
+  //   console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
+  // }
 }
 
 startPeer(getMyAddr())

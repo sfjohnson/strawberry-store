@@ -57,6 +57,7 @@ export const onWrite1Req = async (fromPeerPubKey: string, payload: Stst.Write1Re
         // currentCertificate has already been checked for consistency, so we know for each responderId each corresponding object epoch will be the same,
         // so just use the MultiGrant from the first peer in the WriteCertificate.
         let currentEpoch: number = numberToTimestamp(getObjectCurrentTimestamp(key, svoc)).epoch
+        // DEBUG: handle overflow of epoch
         nextTimestamp = timestampToNumber({ epoch: currentEpoch + 1, subEpoch: payload.subEpoch })
 
         const existingMultiGrant = svoc.grantHistory.get(currentEpoch + 1)?.get(nextTimestamp)
@@ -80,7 +81,7 @@ export const onWrite1Req = async (fromPeerPubKey: string, payload: Stst.Write1Re
       write1MultiGrant.grants.set(key, nextTimestamp)
     }
 
-    await signMultiGrant(write1MultiGrant, _myPrivKey)
+    signMultiGrant(write1MultiGrant, _myPrivKey)
 
     // All of the objects in the transaction are valid to be written and write1MultiGrant has been made, so we can now add to (or create) grantHistory
     for (const { key } of payload.transaction) {

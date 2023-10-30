@@ -1,3 +1,4 @@
+// import { reqResInit } from '../src/cream'
 import { createHash } from 'crypto'
 import Stst from '../src'
 import { asyncDelay } from '../src/common/utils'
@@ -11,14 +12,17 @@ const transaction = [
     key: '1235'
   }, {
     action: Stst.TransactionOperationAction.READ,
-    key: 'hello'
-  }, {
-    action: Stst.TransactionOperationAction.READ,
     key: '1236'
   }
 ]
 
 export const responderEntrypoint = async (myId: string) => {
+  // await reqResInit(peers, async (peerId, msg) => {
+  //   const hash1 = createHash('sha256')
+  //   hash1.update(msg)
+  //   return Buffer.concat([Buffer.from([myIndex]), hash1.digest()])
+  // })
+
   await asyncDelay(7000)
 
   const result = await Stst.executeTransaction(transaction)

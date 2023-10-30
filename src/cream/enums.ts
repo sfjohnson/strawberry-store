@@ -20,3 +20,9 @@ export enum Side {
   INITIATOR,
   RESPONDER
 }
+
+export enum ResCbStatus {
+  CONTINUE,
+  RESOLVE,
+  REJECT
+}
