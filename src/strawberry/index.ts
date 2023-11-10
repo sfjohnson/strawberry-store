@@ -11,6 +11,7 @@ import { parseMessage } from './protocol'
 import { numberToTimestamp } from '../common/utils'
 import { initStore } from '../bread'
 import { initExecute } from './execute'
+import { pubKeyFromPrivKey } from './verify'
 
 const garbageCollector = async () => {
   for (const key of getAllKeysIterator()) {
@@ -209,13 +210,17 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   if (!config.peerAddrs) throw new Error('peerAddrs required')
   if (!config.appDirName) throw new Error('appDirName required')
 
+  const myPubKey = pubKeyFromPrivKey(config.myPrivKey)
+  // DEBUG: log
+  console.log(`myPubKey: ${myPubKey}`)
+
   await initExecute(config.executeTimeout)
   await initStore(config.appDirName)
   await reqResInit(config.peerAddrs.map((addr, i) => { return { addr, id: config.peerPubKeys[i] } }), onReq)
-  initInitiatorRead(config.maxFaultyPeers, config.readTimeout, config.readRequestRetryCount, config.myPubKey, config.peerPubKeys)
+  initInitiatorRead(config.maxFaultyPeers, config.readTimeout, config.readRequestRetryCount, myPubKey, config.peerPubKeys)
   initInitiatorWrite(config.peerPubKeys, config.maxFaultyPeers, config.write1Timeout, config.write1RequestRetryCount, config.write2Timeout, config.write2RequestRetryCount)
-  initResponderWrite1(config.myPubKey, config.myPrivKey)
-  initResponderWrite2(config.myPubKey, config.peerPubKeys, config.maxFaultyPeers)
+  initResponderWrite1(myPubKey, config.myPrivKey)
+  initResponderWrite2(myPubKey, config.peerPubKeys, config.maxFaultyPeers)
 
   setInterval(garbageCollector, config.gcInterval)
 }

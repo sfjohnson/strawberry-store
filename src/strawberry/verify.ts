@@ -57,3 +57,10 @@ export const verifyMultiGrant = (multiGrant: Stst.MultiGrant, peerPubKeys: strin
   const sigBuf = Buffer.from(multiGrant.signature, 'base64')
   return ed.verify(sigBuf, Buffer.from(JSON.stringify(orderedMultiGrant)), pubKeyBuf)
 }
+
+// takes and returns ed25519 key as 32 byte base64 encoded string
+export const pubKeyFromPrivKey = (privKey: string): string => {
+  if (typeof privKey !== 'string' || privKey.length !== 44) throw new Error('invalid privKey')
+  const privKeyBuf = Buffer.from(privKey, 'base64')
+  return Buffer.from(ed.getPublicKey(privKeyBuf)).toString('base64')
+}

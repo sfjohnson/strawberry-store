@@ -1,6 +1,6 @@
 {
   "name": "strawberry-store",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Fault tolerant distributed key-value store",
   "main": "dist/src/index.js",
   "type": "module",
@@ -11,7 +11,8 @@
   "scripts": {
     "prepublishOnly": "npm run build",
     "build": "tsc",
-    "test": "node --import ./loader.js dist/test/test.js"
+    "test": "node --import ./loader.js dist/test/test.js",
+    "keygen": "tsc && node --import ./loader.js dist/test/keygen.js"
   },
   "repository": {
     "type": "git",

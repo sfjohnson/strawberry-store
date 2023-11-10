@@ -74,7 +74,6 @@ declare namespace Stst {
   }
 
   interface PeerConfig {
-    myPubKey: string // ed25519 key as 32 byte base64 encoded string
     myPrivKey: string // ed25519 key as 32 byte base64 encoded string
     peerPubKeys: string[] // The length of this must be at least 3 * maxFaultyPeers
     peerAddrs?: string[] // IP addresses, can be undefined if network discovery is being used

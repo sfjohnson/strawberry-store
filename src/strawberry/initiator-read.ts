@@ -154,6 +154,7 @@ export const executeReadTransaction = async (transaction: Stst.TransactionOperat
   let myResults: Stst.ReadOperationResult[]
   try {
     await lockKeys(transactionKeys)
+    // TODO: remove await Promise.all and async here
     myResults = await Promise.all(transaction.map(async (op) => {
       const svoc = getKey(op.key)
       if (!svoc) {

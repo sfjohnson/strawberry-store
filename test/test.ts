@@ -224,7 +224,6 @@ const startPeer = async (myAddr: string) => {
   }
 
   await Stst.init({
-    myPubKey: PEERS[myIndex].pubKey,
     myPrivKey: PEERS[myIndex].privKey,
     peerPubKeys,
     peerAddrs,
@@ -243,15 +242,15 @@ const startPeer = async (myAddr: string) => {
   // wait for all hosts to init
   await asyncDelay(2000)
 
-  while (true) {
-    try {
-      await doTransaction()
-    } catch (err: unknown) {
-      console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
-    }
+  // while (true) {
+  //   try {
+  //     await doTransaction()
+  //   } catch (err: unknown) {
+  //     console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
+  //   }
 
-    await asyncDelay(1000)
-  }
+  //   await asyncDelay(1000)
+  // }
 
   // const creamPeers: any[] = []
   // for (let i = 0; i < PEERS.length; i++) {
@@ -262,15 +261,15 @@ const startPeer = async (myAddr: string) => {
   //   })
   // }
 
-  // try {
-  //   if (myIndex === 0) {
-  //     await initiatorEntrypoint(PEERS[myIndex].pubKey)
-  //   } else {
-  //     await responderEntrypoint(PEERS[myIndex].pubKey)
-  //   }
-  // } catch (err: unknown) {
-  //   console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
-  // }
+  try {
+    if (myIndex === 0) {
+      await initiatorEntrypoint(PEERS[myIndex].pubKey)
+    } else {
+      await responderEntrypoint(PEERS[myIndex].pubKey)
+    }
+  } catch (err: unknown) {
+    console.log(`ERROR ${PEERS[myIndex].pubKey}: ${(err as Error).message}`)
+  }
 }
 
 startPeer(getMyAddr())
