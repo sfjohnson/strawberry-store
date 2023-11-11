@@ -8,12 +8,17 @@ import { initResponderWrite1, onWrite1Req } from './responder-write1'
 import { initResponderWrite2, onWrite2Req } from './responder-write2'
 import { onReadReq } from './responder-read'
 import { parseMessage } from './protocol'
-import { numberToTimestamp } from '../common/utils'
+import { numberToTimestamp, asyncDelay } from '../common/utils'
 import { initStore } from '../bread'
 import { initExecute } from './execute'
 import { pubKeyFromPrivKey } from './verify'
+import { fullIntegrityCheck } from './tools'
+
+let gcInProgress = false
+let fullIntegrityCheckInProgress = false
 
 const garbageCollector = async () => {
+  gcInProgress = true
   for (const key of getAllKeysIterator()) {
     try {
       await lockKeys([key])
@@ -38,11 +43,13 @@ const garbageCollector = async () => {
       setKey(key, svoc)
     } catch (err) {
       // DEBUG: log
-      console.error(err)
+      console.warn(err)
     }
 
     unlockKeys([key])
+    await asyncDelay(50) // wait a bit to minimise impact on any in-progress transactions
   }
+  gcInProgress = false
 }
 
 const executeTransaction = async (transaction: Stst.TransactionOperation[]): Promise<Stst.TransactionOperationResult[] | void> => {
@@ -211,8 +218,6 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   if (!config.appDirName) throw new Error('appDirName required')
 
   const myPubKey = pubKeyFromPrivKey(config.myPrivKey)
-  // DEBUG: log
-  console.log(`myPubKey: ${myPubKey}`)
 
   await initExecute(config.executeTimeout)
   await initStore(config.appDirName)
@@ -222,23 +227,55 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   initResponderWrite1(myPubKey, config.myPrivKey)
   initResponderWrite2(myPubKey, config.peerPubKeys, config.maxFaultyPeers)
 
-  setInterval(garbageCollector, config.gcInterval)
+  setInterval(() => {
+    if (!gcInProgress && !fullIntegrityCheckInProgress) garbageCollector()
+  }, config.gcInterval)
+}
+
+const fullIntegrityCheckOnKey = (reqId: number, key: string, segments: number[]) => {
+  if (!fullIntegrityCheckInProgress) return false
+  // process.send is not suddenly gonna go undefined, TS is being a dumb dumb
+  // @ts-ignore
+  process.send({ reqId, error: null, result: [key, segments], completed: false })
+  return true
 }
 
 process.on('message', async (msg) => {
   if (!process.send) throw new Error('this module must be spawned with an IPC channel')
 
   if (!msg || typeof msg !== 'object') return
-  const { func, args, reqId } = msg as any
-  if (!Array.isArray(args) || typeof reqId !== 'number') return
+  const { func, args, reqId, completed } = msg as any
 
   try {
     if (func === 'init') {
-      process.send({ reqId, error: null, result: await init(args[0]) })
+      process.send({ reqId, error: null, result: await init(args[0]), completed: true })
     } else if (func === 'executeTransaction') {
-      process.send({ reqId, error: null, result: await executeTransaction(args[0]) })
+      process.send({ reqId, error: null, result: await executeTransaction(args[0]), completed: true })
+    } else if (func === 'fullIntegrityCheck') {
+      // TODO: doing the completion logic this way means fullIntegrityCheck checks one extra key
+      // unnecessarily after the parent process has cancelled the check, and fullIntegrityCheckInProgress
+      // is incorrectly set to false while the superfluous key is being checked (not a big deal).
+      if (!completed && fullIntegrityCheckInProgress) {
+        process.send({
+          reqId,
+          error: new Error('fullIntegrityCheck called while in progress'),
+          result: null,
+          completed: true
+        })
+        return
+      }
+
+      if (completed) {
+        fullIntegrityCheckInProgress = false
+        return
+      }
+
+      fullIntegrityCheckInProgress = true
+      await fullIntegrityCheck(fullIntegrityCheckOnKey.bind(null, reqId))
+      fullIntegrityCheckInProgress = false
+      process.send({ reqId, error: null, result: undefined, completed: true })
     }
   } catch (error) {
-    process.send({ reqId, error, result: null })
+    process.send({ reqId, error, result: null, completed: true })
   }
 })

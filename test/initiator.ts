@@ -1,5 +1,6 @@
 import Stst from '../src'
 import { createHash, randomBytes } from 'crypto'
+import { asyncDelay } from '../src/common/utils'
 // import { reqResInit, initiateReqEach, ResCbStatus } from '../src/cream'
 
 const generateRandomBuf = (length: number): Promise<Buffer> => {
@@ -99,4 +100,20 @@ export const initiatorEntrypoint = async (myId: string) => {
 
     console.log(`Initiator ${myId} transaction ${i} result:`, result)
   }
+
+  // wait for responders
+  await asyncDelay(12000)
+
+  console.log('integrity check results')
+  // let keyCount = 0
+  await Stst.fullIntegrityCheck((key, segments) => {
+    console.log(key, segments)
+
+    // if (++keyCount === 3) {
+    //   Stst.fullIntegrityCheck((key2, segments2) => true).catch((err) => console.log('here', err))
+    // }
+
+    // if (++keyCount == 10) return false
+    return true
+  })
 }

@@ -32,7 +32,7 @@ const writeCertificatesMatch = (a: Stst.WriteCertificate, b: Stst.WriteCertifica
   return true
 }
 
-const resultsMatch = (a: Stst.ReadOperationResult[], b: Stst.ReadOperationResult[]): boolean => {
+export const resultsMatch = (a: Stst.ReadOperationResult[], b: Stst.ReadOperationResult[]): boolean => {
   if (a.length !== b.length) return false
 
   for (let i = 0; i < a.length; i++) {
