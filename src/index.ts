@@ -112,6 +112,8 @@ child.on('message', (msg) => {
     return
   }
 
+  req.markedForDeletion = false // prevent timeout
+
   let continueReq = false
   try {
     if (!req.callback) throw new Error('no callback')
