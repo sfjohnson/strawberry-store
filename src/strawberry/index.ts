@@ -16,6 +16,7 @@ import { fullIntegrityCheck } from './tools'
 
 let gcInProgress = false
 let fullIntegrityCheckInProgress = false
+let myPubKey: string | null = null
 
 const garbageCollector = async () => {
   gcInProgress = true
@@ -217,7 +218,7 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   if (!config.peerAddrs) throw new Error('peerAddrs required')
   if (!config.appDirName) throw new Error('appDirName required')
 
-  const myPubKey = pubKeyFromPrivKey(config.myPrivKey)
+  myPubKey = pubKeyFromPrivKey(config.myPrivKey)
 
   await initExecute(config.executeTimeout)
   await initStore(config.appDirName)
@@ -232,7 +233,7 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   }, config.gcInterval)
 }
 
-const fullIntegrityCheckOnKey = (reqId: number, key: string, segments: number[]) => {
+const fullIntegrityCheckOnKey = (reqId: number, key: string, segments: string[][]) => {
   if (!fullIntegrityCheckInProgress) return false
   // process.send is not suddenly gonna go undefined, TS is being a dumb dumb
   // @ts-ignore
@@ -270,12 +271,16 @@ process.on('message', async (msg) => {
         return
       }
 
+      if (myPubKey === null) throw new Error('fullIntegrityCheck called before init')
+
       fullIntegrityCheckInProgress = true
-      await fullIntegrityCheck(fullIntegrityCheckOnKey.bind(null, reqId))
+      await fullIntegrityCheck(myPubKey, fullIntegrityCheckOnKey.bind(null, reqId))
       fullIntegrityCheckInProgress = false
       process.send({ reqId, error: null, result: undefined, completed: true })
     }
   } catch (error) {
+    if (func === 'fullIntegrityCheck') fullIntegrityCheckInProgress = false
+
     process.send({ reqId, error, result: null, completed: true })
   }
 })

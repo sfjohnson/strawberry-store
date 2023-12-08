@@ -4,10 +4,6 @@ Fault tolerant distributed key-value store
 
 Based on MochiDB [link](https://www.scs.stanford.edu/17au-cs244b/labs/projects/tsaturyan_dhakshinamurthy.pdf)
 
-## NOTE
-
-This is a proof-of-concept, it's not ready for production yet!
-
 ## Sandwich structure
 
 ```

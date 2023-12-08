@@ -12,7 +12,7 @@ import { resultsMatch } from './initiator-read'
 // cancelled by returning false from the callback.
 // If fullIntegrityCheck is called while a check is running an error will be thrown. Garbage collection is
 // paused while the check is running.
-export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: number[]) => boolean) => {
+export const fullIntegrityCheck = async (myPubKey: string, onKeyCb: (key: string, segments: string[][]) => boolean) => {
   for (const key of getAllKeysIterator()) {
     const readReqMessage: Stst.ReadReqMessage = {
       transaction: [{
@@ -26,39 +26,39 @@ export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: number
       payload: readReqMessage,
     }))
 
-    const resultSegments = new Map<Stst.ReadOperationResult, number>()
-    let nullSegment = 0
+    const resultSegments = new Map<Stst.ReadOperationResult, string[]>()
+    let nullSegment = []
 
     // apply responses to segments
-    for (const resBuf of responses) {
-      if (resBuf === null) {
-        nullSegment++
+    for (const { res, peerId } of responses) {
+      if (res === null) {
+        nullSegment.push(peerId)
         continue
       }
 
-      const parsedRes = parseRes(resBuf)
+      const parsedRes = parseRes(res)
       if (parsedRes.type !== ProtocolMessageType.READ_RES) {
-        nullSegment++
+        nullSegment.push(peerId)
         continue
       }
 
       const resMessage = parsedRes.payload as Stst.ReadResMessage
       if (resMessage.results.length !== 1) { // very unlikely
-        nullSegment++
+        nullSegment.push(peerId)
         continue
       }
 
       const resResult = resMessage.results[0]
       let match = false
-      for (const [segmentResult, count] of resultSegments.entries()) {
+      for (const [segmentResult, peerIds] of resultSegments.entries()) {
         if (resultsMatch([segmentResult], [resResult])) {
-          resultSegments.set(segmentResult, count + 1)
+          resultSegments.set(segmentResult, [...peerIds, peerId])
           match = true
           break
         }
       }
 
-      if (!match) resultSegments.set(resResult, 1)
+      if (!match) resultSegments.set(resResult, [peerId])
     }
 
     // now apply my local store to segments
@@ -79,22 +79,22 @@ export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: number
 
     unlockKeys([key])
     if (myResult === null) {
-      nullSegment++
+      nullSegment.push(myPubKey)
     } else {
       let match = false
-      for (const [segmentResult, count] of resultSegments.entries()) {
+      for (const [segmentResult, peerIds] of resultSegments.entries()) {
         if (resultsMatch([segmentResult], [myResult])) {
-          resultSegments.set(segmentResult, count + 1)
+          resultSegments.set(segmentResult, [...peerIds, myPubKey])
           match = true
           break
         }
       }
 
-      if (!match) resultSegments.set(myResult, 1)
+      if (!match) resultSegments.set(myResult, [myPubKey])
     }
 
-    let segments: number[] = [...resultSegments.values()]
-    if (nullSegment > 0) segments.push(nullSegment)
+    let segments: string[][] = [...resultSegments.values()]
+    if (nullSegment.length > 0) segments.push(nullSegment)
 
     if (!onKeyCb(key, segments)) break
   }

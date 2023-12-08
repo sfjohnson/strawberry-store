@@ -135,7 +135,7 @@ const executeTransaction = (transaction: Stst.TransactionOperation[]): Promise<S
   return addReq('executeTransaction', [transaction])
 }
 
-export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: number[]) => boolean) => {
+export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: string[][]) => boolean) => {
   return addReq('fullIntegrityCheck', [], onKeyCb)
 }
 

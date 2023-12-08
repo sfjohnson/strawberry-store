@@ -209,7 +209,7 @@ export const initiateReq = async (peerId: string, reqData: Buffer): Promise<Buff
 }
 
 // this is for the initiator side
-export const initiateReqAll = async (reqData: Buffer): Promise<(Buffer | null)[]> => {
+export const initiateReqAll = async (reqData: Buffer) => {
   if (_otherPeerIds === null) throw new Error('reqResInit not called')
 
   const responses = await Promise.allSettled(_otherPeerIds.map((peerId) => {
@@ -217,7 +217,10 @@ export const initiateReqAll = async (reqData: Buffer): Promise<(Buffer | null)[]
   }))
 
   // DEBUG: we are discarding the error messages, are they useful?
-  return responses.map((res) => res.status === 'fulfilled' ? res.value : null)
+  return responses.map((resOutcome, i) => {
+    const res = resOutcome.status === 'fulfilled' ? resOutcome.value : null
+    return { res, peerId: _otherPeerIds![i] }
+  })
 }
 
 // this is for the initiator side

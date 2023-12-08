@@ -1,6 +1,6 @@
 {
   "name": "strawberry-store",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Fault tolerant distributed key-value store",
   "main": "dist/src/index.js",
   "type": "module",
