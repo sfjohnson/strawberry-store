@@ -135,13 +135,18 @@ const executeTransaction = (transaction: Stst.TransactionOperation[]): Promise<S
   return addReq('executeTransaction', [transaction])
 }
 
-export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: string[][]) => boolean) => {
+const fullIntegrityCheck = async (onKeyCb: (key: string, segments: string[][]) => boolean) => {
   return addReq('fullIntegrityCheck', [], onKeyCb)
+}
+
+const getPeerStats = async (): Promise<Stst.PeerStats[]> => {
+  return addReq('getPeerStats', [])
 }
 
 export default {
   init,
   executeTransaction,
   fullIntegrityCheck,
+  getPeerStats,
   TransactionOperationAction // re-export enum so it can be used externally
 }

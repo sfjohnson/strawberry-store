@@ -77,6 +77,10 @@ const verifyWriteCertificate = (writeCertificate: Stst.WriteCertificate, transac
     }
   }
 
+  if (transaction.length !== writeCertificate[0].grants.size) {
+    throw new Error('Size of grants maps and transaction are inconsistent')
+  }
+
   // All multiGrants in writeCertificate match, now check for write contention by comparing timestamp in writeCertificate to timestamp in store
   // Note that we already have a lock on the keys in transaction
   for (const { key } of transaction) {
@@ -187,7 +191,6 @@ export const onWrite2Req = async (payload: Stst.Write2ReqMessage): Promise<Buffe
     const commit = verifyWriteCertificate(payload.writeCertificate, payload.transaction)
     if (commit) await commitWriteTransaction(payload.writeCertificate, payload.transaction)
     // If we created a MultiGrant during write1 we can now safely delete it from grantHistory
-    // TODO: double check that deleteCompletedFromGrantHistory only accesses keys within transactionKeys, because otherwise the lock would be broken
     await deleteCompletedFromGrantHistory(payload.writeCertificate)
     unlockKeys(transactionKeys)
 

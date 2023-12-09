@@ -1,3 +1,4 @@
+// TODO: make these user configurable
 export const UDP_BIND_PORT = 27918
 export const MAX_CHUNK_LENGTH = 512 // RFC 791 page 25: Every internet destination must be able to receive a datagram of 576 octets either in one piece or in fragments to be reassembled.
 export const RESEND_INTERVAL = 300 // ms

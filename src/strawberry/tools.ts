@@ -3,8 +3,57 @@ import { parseRes } from './index'
 import { lockKeys, unlockKeys, getKey, getAllKeysIterator } from '../bread'
 import { ProtocolMessageType, TransactionOperationAction } from '../enums'
 import { serialiseMessage } from './protocol'
-import { initiateReqAll } from '../cream'
+import { initiateReqAll, ResCbStatus, initiateReqEach } from '../cream'
 import { resultsMatch } from './initiator-read'
+
+let initDone = false
+let _myPubKey: string
+let _otherPeerCount: number
+let _maxFaultyPeers: number
+
+export const initTools = (myPubKey: string, peerPubKeys: string[], maxFaultyPeers: number) => {
+  _myPubKey = myPubKey
+  _otherPeerCount = peerPubKeys.length
+  _maxFaultyPeers = maxFaultyPeers
+  initDone = true
+}
+
+// Gets for each peer:
+// - the peer's current epoch time in milliseconds
+// - reqres round-trip time in milliseconds
+// Throws if we did not get a fault-free quantity of responses (>= otherPeerCount - maxFaultyPeers)
+export const getPeerStats = async (): Promise<Stst.PeerStats[]> => {
+  if (!initDone) throw new Error('Must call initTools() first!')
+
+  const peerStats: Stst.PeerStats[] = []
+
+  try {
+    await initiateReqEach(serialiseMessage({
+      type: ProtocolMessageType.ECHO_REQ,
+      payload: { reqTime: Date.now() }
+    }), (res, peerId) => {
+      const parsedRes = parseRes(res)
+      if (parsedRes.type !== ProtocolMessageType.ECHO_RES) return ResCbStatus.CONTINUE
+
+      const { reqTime, resTime } = parsedRes.payload as Stst.EchoResMessage
+      peerStats.push({
+        peerId,
+        peerTime: resTime,
+        rtt: Date.now() - reqTime
+      })
+
+      return ResCbStatus.CONTINUE
+    })
+  } catch {
+    // don't bother returning ResCbStatus.RESOLVE, just let initiateReqEach throw
+  }
+
+  if (peerStats.length < _otherPeerCount - _maxFaultyPeers) {
+    throw new Error('Did not receive a fault-free quantity of responses')
+  }
+
+  return peerStats
+}
 
 // This function gets all keys on all peers, while a normal read only gets enough results for a quorum (f + 1).
 // It can be used to check if there is segmentation on any keys. It can also identify peers that are down.
@@ -12,7 +61,9 @@ import { resultsMatch } from './initiator-read'
 // cancelled by returning false from the callback.
 // If fullIntegrityCheck is called while a check is running an error will be thrown. Garbage collection is
 // paused while the check is running.
-export const fullIntegrityCheck = async (myPubKey: string, onKeyCb: (key: string, segments: string[][]) => boolean) => {
+export const fullIntegrityCheck = async (onKeyCb: (key: string, segments: string[][]) => boolean) => {
+  if (!initDone) throw new Error('Must call initTools() first!')
+
   for (const key of getAllKeysIterator()) {
     const readReqMessage: Stst.ReadReqMessage = {
       transaction: [{
@@ -79,18 +130,18 @@ export const fullIntegrityCheck = async (myPubKey: string, onKeyCb: (key: string
 
     unlockKeys([key])
     if (myResult === null) {
-      nullSegment.push(myPubKey)
+      nullSegment.push(_myPubKey)
     } else {
       let match = false
       for (const [segmentResult, peerIds] of resultSegments.entries()) {
         if (resultsMatch([segmentResult], [myResult])) {
-          resultSegments.set(segmentResult, [...peerIds, myPubKey])
+          resultSegments.set(segmentResult, [...peerIds, _myPubKey])
           match = true
           break
         }
       }
 
-      if (!match) resultSegments.set(myResult, [myPubKey])
+      if (!match) resultSegments.set(myResult, [_myPubKey])
     }
 
     let segments: string[][] = [...resultSegments.values()]

@@ -7,16 +7,15 @@ import { initInitiatorRead, executeReadTransaction } from './initiator-read'
 import { initResponderWrite1, onWrite1Req } from './responder-write1'
 import { initResponderWrite2, onWrite2Req } from './responder-write2'
 import { onReadReq } from './responder-read'
-import { parseMessage } from './protocol'
+import { parseMessage, serialiseMessage } from './protocol'
 import { numberToTimestamp, asyncDelay } from '../common/utils'
 import { initStore } from '../bread'
 import { initExecute } from './execute'
 import { pubKeyFromPrivKey } from './verify'
-import { fullIntegrityCheck } from './tools'
+import { initTools, fullIntegrityCheck, getPeerStats } from './tools'
 
 let gcInProgress = false
 let fullIntegrityCheckInProgress = false
-let myPubKey: string | null = null
 
 const garbageCollector = async () => {
   gcInProgress = true
@@ -141,6 +140,15 @@ export const parseRes = (message: Buffer): Stst.ProtocolMessage => {
       if (typeof payload.message !== 'string') throw new Error('Write2RefusedRes message must be a string')
       return parsedMessage
 
+    // Echo
+
+    case ProtocolMessageType.ECHO_RES:
+      payload = parsedMessage.payload as Stst.EchoResMessage
+      if (typeof payload.reqTime !== 'number' || typeof payload.resTime !== 'number') {
+        throw new Error('EchoResMessage reqTime and resTime must be numbers')
+      }
+      return parsedMessage
+
     // Unknown
 
     default:
@@ -201,6 +209,17 @@ const onReq = async (fromPeerId: string, message: Buffer): Promise<Buffer> => {
       response = await onWrite2Req(payload)
       break
 
+    // Echo
+
+    case ProtocolMessageType.ECHO_REQ:
+      payload = parsedMessage.payload as Stst.EchoReqMessage
+      if (typeof payload.reqTime !== 'number') throw new Error('EchoReqMessage reqTime must be a number')
+      response = serialiseMessage({
+        type: ProtocolMessageType.ECHO_RES,
+        payload: { reqTime: payload.reqTime, resTime: Date.now() }
+      })
+      break
+
     // Unknown
 
     default:
@@ -218,7 +237,7 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   if (!config.peerAddrs) throw new Error('peerAddrs required')
   if (!config.appDirName) throw new Error('appDirName required')
 
-  myPubKey = pubKeyFromPrivKey(config.myPrivKey)
+  const myPubKey = pubKeyFromPrivKey(config.myPrivKey)
 
   await initExecute(config.executeTimeout)
   await initStore(config.appDirName)
@@ -227,6 +246,7 @@ const init = async (config: Stst.PeerConfig): Promise<void> => {
   initInitiatorWrite(config.peerPubKeys, config.maxFaultyPeers, config.write1Timeout, config.write1RequestRetryCount, config.write2Timeout, config.write2RequestRetryCount)
   initResponderWrite1(myPubKey, config.myPrivKey)
   initResponderWrite2(myPubKey, config.peerPubKeys, config.maxFaultyPeers)
+  initTools(myPubKey, config.peerPubKeys, config.maxFaultyPeers)
 
   setInterval(() => {
     if (!gcInProgress && !fullIntegrityCheckInProgress) garbageCollector()
@@ -252,6 +272,8 @@ process.on('message', async (msg) => {
       process.send({ reqId, error: null, result: await init(args[0]), completed: true })
     } else if (func === 'executeTransaction') {
       process.send({ reqId, error: null, result: await executeTransaction(args[0]), completed: true })
+    } else if (func === 'getPeerStats') {
+      process.send({ reqId, error: null, result: await getPeerStats(), completed: true })
     } else if (func === 'fullIntegrityCheck') {
       // TODO: doing the completion logic this way means fullIntegrityCheck checks one extra key
       // unnecessarily after the parent process has cancelled the check, and fullIntegrityCheckInProgress
@@ -271,10 +293,8 @@ process.on('message', async (msg) => {
         return
       }
 
-      if (myPubKey === null) throw new Error('fullIntegrityCheck called before init')
-
       fullIntegrityCheckInProgress = true
-      await fullIntegrityCheck(myPubKey, fullIntegrityCheckOnKey.bind(null, reqId))
+      await fullIntegrityCheck(fullIntegrityCheckOnKey.bind(null, reqId))
       fullIntegrityCheckInProgress = false
       process.send({ reqId, error: null, result: undefined, completed: true })
     }

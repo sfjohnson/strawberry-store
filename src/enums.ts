@@ -8,7 +8,9 @@ export enum ProtocolMessageType {
   WRITE_1_REFUSED_RES,
   WRITE_2_REQ,
   WRITE_2_OK_RES,
-  WRITE_2_REFUSED_RES
+  WRITE_2_REFUSED_RES,
+  ECHO_REQ,
+  ECHO_RES
 }
 
 export enum TransactionOperationAction {

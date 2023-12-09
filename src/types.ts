@@ -40,13 +40,23 @@ declare namespace Stst {
     message: string
   }
 
+  interface EchoReqMessage {
+    reqTime: number
+  }
+
+  interface EchoResMessage {
+    reqTime: number
+    resTime: number
+  }
+
   type WriteResMessage = Write1OkResMessage | Write1RefusedResMessage | Write2OkResMessage | Write2RefusedResMessage
   type WriteMessage = Write1ReqMessage | Write1OkResMessage | Write1RefusedResMessage | Write2ReqMessage | Write2OkResMessage | Write2RefusedResMessage
   type ReadMessage = ReadReqMessage | ReadResMessage
+  type EchoMessage = EchoReqMessage | EchoResMessage
 
   interface ProtocolMessage {
     type: ProtocolMessageType
-    payload: WriteMessage | ReadMessage
+    payload: WriteMessage | ReadMessage | EchoMessage
   }
 
   // Phase 1, server replies with MultiGrant, which is signed and contains grants
@@ -109,10 +119,11 @@ declare namespace Stst {
     currentCertificate: WriteCertificate | null
   }
 
-  // Not actually used, just here to demonstrate the shape of the data
-  // interface ObjectStore {
-  //   objects: Map<string, StoreValueObjectContainer> // key is object key
-  // }
+  interface PeerStats {
+    peerId: string
+    peerTime: number
+    rtt: number
+  }
 }
 
 export default Stst

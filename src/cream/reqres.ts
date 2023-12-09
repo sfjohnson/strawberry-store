@@ -230,7 +230,7 @@ export const initiateReqAll = async (reqData: Buffer) => {
 // 3. rejects, resolves or continues based on what onResCb returns
 // 4. rejects if all reqs have settled but onResCb has only returned ResCbStatus.CONTINUE
 // 5. if onResCb returns ResCbStatus.RESOLVE, resolves with an array of responses
-export const initiateReqEach = async (reqData: Buffer, onResCb: (res: Buffer) => ResCbStatus): Promise<Buffer[]> => {
+export const initiateReqEach = async (reqData: Buffer, onResCb: (res: Buffer, peerId: string) => ResCbStatus): Promise<Buffer[]> => {
   return new Promise ((resolve, reject) => {
     if (_otherPeerIds === null) {
       reject(new Error('reqResInit not called'))
@@ -245,7 +245,7 @@ export const initiateReqEach = async (reqData: Buffer, onResCb: (res: Buffer) =>
       initiateReq(peerId, reqData).then((res) => {
         if (settledCount === settledCountTarget) return
 
-        switch(onResCb(res)) {
+        switch(onResCb(res, peerId)) {
           case ResCbStatus.CONTINUE:
             if (++settledCount === settledCountTarget) {
               reject(new Error('cannot continue, all requests settled'))
